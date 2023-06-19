@@ -1,12 +1,15 @@
 const jwt = require('jsonwebtoken');
+require('dotenv').config();
+
 
 const verifyToken = (req, res, next) => {
     const accessToken = req.headers['authorization'];
+    
 
     if (accessToken) {
         try {
-            const decoded = jwt.verify(accessToken, '12345');
-            req.user = decoded; // Attach the decoded user information to the request object
+            const decoded = jwt.verify(accessToken, process.env.SALT);
+            req.user = decoded;
             next();
         } catch (error) {
             console.log(error);

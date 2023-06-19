@@ -12,8 +12,7 @@ const PORT = process.env.PORT || 8080;
 
 // app.use(verifyToken);
 
-app.use(userRouter);
-
+app.use('/', userRouter);
 
 
 connect();
