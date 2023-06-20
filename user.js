@@ -4,6 +4,7 @@ const cryto = require("crypto");
 const jwt = require("jsonwebtoken");
 const User = require("./models/userModels");
 const router = express.Router();
+var nodemailer = require("nodemailer");
 
 router.post("/registration", async (req, res) => {
   const { username, email, password } = req.body;
@@ -95,16 +96,15 @@ router.put("/user/:id", async (req, res) => {
   res.send(updatedUser);
 });
 
-
-router.get('/', (req, res) => {
-  res.send('Hello word')
+router.get("/", (req, res) => {
+  res.send("Hello word");
 });
 
-router.get('/forgot-password', (req, res, next) => {
-  res.render('forgot-password');
-})
+router.get("/forgot-password", (req, res, next) => {
+  res.render("forgot-password");
+});
 
-router.post('/forgot-password', async (req, res) => {
+router.post("/forgot-password", async (req, res) => {
   const { email } = req.body;
   try {
     const oldUser = await User.findOne({ email });
@@ -112,50 +112,82 @@ router.post('/forgot-password', async (req, res) => {
       res.send({ message: "User not Exist" });
       return;
     }
-    const user = await User.findOne({ email }).select(
-      "-password"
-    );
+    const user = await User.findOne({ email }).select("-password");
     const { ...theRest } = user;
-    const accsessToken = jwt.sign(theRest, process.env.SECRET_KEY, { expiresIn: "5m" });
-    const link = `http://localhost:8080/reset-password/${oldUser.id}/${accsessToken}`;
+    const token = jwt.sign(theRest, process.env.SECRET_KEY, {
+      expiresIn: "5m",
+    });
+    // console.log(user);
+    // user.passResetToken = token;   // BUNU AC
+    // console.log(user);
+    user.save();
+    const link = `http://localhost:8080/reset-password/${oldUser.id}/${token}`;
     console.log(link);
-    res.send('Password resend link has been sen to email...')
+    //nodemaile
 
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.SERVICE_USER,
+        pass: process.env.SERVICE_PASSWORD,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.SERVICE_USER,
+      to: "orxanracabov@gmail.com", // email
+      subject: "Password Reset",
+      text: link,
+    };
+
+    transporter.sendMail(mailOptions, function (error, info) {
+      if (error) {
+        console.log(error);
+      } else {
+        console.log("Email sent: " + info.response);
+      }
+    });
+
+    //nodemaile
+    res.send("Password resend link has been sen to email...");
   } catch (error) {
     res.send(error.message);
   }
 });
 
-router.get('/reset-password/:id/:token', async (req, res) => {
+router.get("/reset-password/:id/:token", async (req, res) => {
   const { id, token } = req.params;
-  // const user = await User.findOne(id)
-
-  if (id !== User.id) {
-    res.send('Invalid Id');
-    return;
-  }
-  const secret = process.env.SECRET_KEY + User.password;
+  const user = await User.findById(id);
   try {
-    const payload = jwt.verify(token, secret);
-    res.render('reset-password', { email: User.email })
-
+    res.render("reset-password", { email: user.email });
   } catch (error) {
-    res.send(error.message)
+    res.send(error.message);
   }
 });
 
-router.post('/reset-password/:id/:token', (req, res) => {
+router.post("/reset-password/:id/:token", async (req, res) => {
   const { id, token } = req.params;
+  const { password, password2 } = req.body;
+  const user = await User.findById(id);
 
-})
+  if (token !== user.passResetToken) {
+    res.status(403).send({ message: "Invalid URL" });
+  }
+  // const hashedPassword = cryto.pbkdf2Sync(     ^U_N_U_T_M_A^
+  //   password,
+  //   process.env.SALT,
+  //   10000,
+  //   64,
+  //   "sha512"
+  // )
+  user.password = password;
+  console.log(this);
+  user.passResetToken = null;
+  // delete user.passResetToken
+  user.save();
 
+  res.send(user);
+});
 
-
-
-
-
-
-
-
-// sntp mail gondermek 
+// sntp mail gondermek
 module.exports = router;
