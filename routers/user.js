@@ -2,16 +2,21 @@ require("dotenv").config();
 const express = require("express");
 const cryto = require("crypto");
 const jwt = require("jsonwebtoken");
-const User = require("./models/userModels");
+const swaggerJsDoc = require("swagger-jsdoc");
+const swaggerUI = require("swagger-ui-express");
+const swaggerDocument = require("../swagger.json");
+const nodemailer = require("nodemailer");
+const User = require("../model/userModel");
 const router = express.Router();
-var nodemailer = require("nodemailer");
+
+const app = express();
 
 router.post("/registration", async (req, res) => {
   const { username, email, password } = req.body;
   try {
-    const existUser = await User.findOne({ username });
+    const existUser = await User.findOne({ email });
     if (existUser) {
-      res.status(400).send({ message: "Username already exists" });
+      res.status(400).send({ message: "Email already exists" });
       return;
     }
     const hashedPassword = cryto.pbkdf2Sync(
@@ -27,15 +32,10 @@ router.post("/registration", async (req, res) => {
       email,
       password: hashedPassword,
     });
-    res.send(user);
+    res.send("Registration successfull");
   } catch (error) {
     res.status(500).send({ message: error.message });
   }
-  // if (req.body) {
-  //     const user = await User.create(req.body);
-  // }else{
-  //     res.status(400).send({message: "Enter the information"}) // bos gonderilir
-  // }
 });
 
 router.post("/login", async (req, res) => {
@@ -49,23 +49,9 @@ router.post("/login", async (req, res) => {
   );
 
   try {
-    // populate
-    // select
-    // sort
-    // limit
-    // skip
-
-    // const user = (await User.find({ email, password: hashedPassword }).select("-password"))[0];
     const user = await User.findOne({ email, password: hashedPassword }).select(
       "-password"
     );
-
-    // findByIdAndUpdate
-    // find
-    // findByIdAndDelete
-    // updateMany
-    // deleteMany
-
     if (user) {
       const { ...theRest } = user;
       const accsessToken = jwt.sign(theRest, process.env.SECRET_KEY);
@@ -89,15 +75,10 @@ router.put("/user/:id", async (req, res) => {
   );
 
   const updated = { ...req.body };
-  console.log(updated);
   updated.password = hashedPassword;
 
-  const updatedUser = await User.findByIdAndUpdate(req.params.id, updated); //------------------
+  const updatedUser = await User.findByIdAndUpdate(req.params.id, updated); 
   res.send(updatedUser);
-});
-
-router.get("/", (req, res) => {
-  res.send("Hello word");
 });
 
 router.get("/forgot-password", (req, res, next) => {
@@ -107,24 +88,20 @@ router.get("/forgot-password", (req, res, next) => {
 router.post("/forgot-password", async (req, res) => {
   const { email } = req.body;
   try {
-    const oldUser = await User.findOne({ email });
-    if (!oldUser) {
+    const user = await User.findOne({ email }).select("-password");
+    if (!user) {
       res.send({ message: "User not Exist" });
       return;
     }
-    const user = await User.findOne({ email }).select("-password");
     const { ...theRest } = user;
     const token = jwt.sign(theRest, process.env.SECRET_KEY, {
       expiresIn: "5m",
     });
-    // console.log(user);
-    // user.passResetToken = token;   // BUNU AC
-    // console.log(user);
-    user.save();
-    const link = `http://localhost:8080/reset-password/${oldUser.id}/${token}`;
-    console.log(link);
-    //nodemaile
+    user.passResetToken = token;
 
+    user.save();
+    const link = `${process.env.BACKEND_URL}/reset-password/${user.id}/${token}`;
+    // nodemaile
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -135,7 +112,8 @@ router.post("/forgot-password", async (req, res) => {
 
     const mailOptions = {
       from: process.env.SERVICE_USER,
-      to: "orxanracabov@gmail.com", // email
+      // User's email
+      to: email,
       subject: "Password Reset",
       text: link,
     };
@@ -148,7 +126,7 @@ router.post("/forgot-password", async (req, res) => {
       }
     });
 
-    //nodemaile
+    // nodemaile
     res.send("Password resend link has been sen to email...");
   } catch (error) {
     res.send(error.message);
@@ -173,21 +151,18 @@ router.post("/reset-password/:id/:token", async (req, res) => {
   if (token !== user.passResetToken) {
     res.status(403).send({ message: "Invalid URL" });
   }
-  // const hashedPassword = cryto.pbkdf2Sync(     ^U_N_U_T_M_A^
-  //   password,
-  //   process.env.SALT,
-  //   10000,
-  //   64,
-  //   "sha512"
-  // )
-  user.password = password;
+  const hashedPassword = cryto.pbkdf2Sync(
+    password,
+    process.env.SALT,
+    10000,
+    64,
+    "sha512"
+  );
+  user.password = hashedPassword;
   console.log(this);
   user.passResetToken = null;
-  // delete user.passResetToken
   user.save();
 
-  res.send(user);
+  res.send("Reset password successfull");
 });
-
-// sntp mail gondermek
 module.exports = router;
