@@ -5,7 +5,6 @@ const swaggerUI = require("swagger-ui-express");
 const connect = require("./Utils/db");
 const userRouter = require("./routers/user");
 const verifyToken = require("./middleware/auth");
-
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
